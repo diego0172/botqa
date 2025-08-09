@@ -1,0 +1,15 @@
+# Node
+node_modules/
+.env
+bd.env
+
+# WhatsApp Web session
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Logs y archivos temporales
+*.log
+
+# SO y editor
+.DS_Store
+.vscode/
