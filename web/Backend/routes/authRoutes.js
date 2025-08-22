@@ -5,6 +5,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
 const SECRET = process.env.JWT_SECRET || 'supersecreto';
+const passport = require('passport');
+const { googleLogin } = require('../controllers/authController');
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
@@ -48,5 +50,15 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ mensaje: 'Error de servidor' });
   }
 });
+
+// --- OAuth Google ---
+router.get('/google',
+  passport.authenticate('google', { scope: ['openid', 'email', 'profile'], prompt: 'consent', accessType: 'offline' })
+);
+
+router.get('/google/callback',
+  passport.authenticate('google', { failureRedirect: '/' }),
+  googleLogin // tu controlador final (emite token / redirige)
+);
 
 module.exports = router;

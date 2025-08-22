@@ -1,6 +1,7 @@
 <div class="login-container">
   <form id="login-form">
     <h2>Iniciar sesión</h2>
+
     <label for="login-email">Correo electrónico</label>
     <input type="email" id="login-email" required autocomplete="username" />
 
@@ -10,4 +11,14 @@
     <button type="submit" id="btn-login">Entrar</button>
     <div class="login-error" id="login-error"></div>
   </form>
-</div>
+
+
+  <a href="http://localhost:3000/api/auth/google" class="google-btn"> <!-- Producción: https://botenginecorp.com/api/auth/google -->
+  <div class="google-icon-wrapper">
+    <img class="google-icon" src="https://developers.google.com/identity/images/g-logo.png" alt="Google logo"/>
+  </div>
+  <p class="btn-text"><b>Continuar con Google</b></p>
+</a>
+
+
+ 

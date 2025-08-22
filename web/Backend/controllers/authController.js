@@ -13,8 +13,8 @@ const loginUser = async (req, res) => {
 
     const user = result.rows[0];
 
-    const token = jwt.sign({ id: user.id, telefono: user.telefono }, process.env.JWT_SECRET, {
-      expiresIn: '8h',
+    const token = jwt.sign({ id: user.id, telefono: user.telefono }, 'tu_clave_secreta', {
+      expiresIn: '1h',
     });
 
     res.json({
@@ -30,4 +30,12 @@ const loginUser = async (req, res) => {
   }
 };
 
-module.exports = { loginUser };
+//  funcion para inciar sesion con google
+const googleLogin = (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  res.json({ user: req.user });
+};
+
+module.exports = { loginUser, googleLogin };
