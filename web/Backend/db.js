@@ -5,8 +5,8 @@ const logger = require('./middlewares/logger');
 const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
-  database: 'inventario',
-  password: '46W6WEyC',
+  database: 'postgres',
+  password: 'Lira142001',
   port: 5432,
 });
 
