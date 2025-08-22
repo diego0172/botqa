@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const path = require('path');
 const QRCode = require('qrcode');
@@ -5,6 +6,7 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const logger = require('./middlewares/logger');
 const handleMessage = require('./controllers/whatsappController');
 const pool = require('./db');
+const { getAuthUrl, saveCode } = require('./services/googleCalendar');
 
 // Inicializa Express
 const app = express();
@@ -29,14 +31,45 @@ const client = new Client({
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   }
 });
+// ENDPOINTS de autorización Google OAuth (una sola vez para guardar tokens)
+app.get('/api/google/authurl', (req, res) => {
+  try {
+    const url = getAuthUrl();
+    res.json({ url });
+  } catch (e) {
+    console.error('[OAuth] getAuthUrl error:', e); // <-- verás el detalle en consola
+    res.status(500).json({ error: e.message || 'No se pudo generar URL de autorización' });
+  }
+});
+
+app.get('/api/google/callback', async (req, res) => {
+  try {
+    const { code } = req.query;
+    if (!code) return res.status(400).send('Falta code');
+    const { saveCode } = require('./services/googleCalendar');
+    await saveCode(code);
+    res.send('✅ Autorizado. Ya puedes cerrar esta pestaña.');
+  } catch (e) {
+    res.status(500).send('Error guardando tokens: ' + e.message);
+  }
+});
+
+// Fallback por si no hay registro en BD
+const EMPRESA_DEFECTO = 'HEAVEN_LASHES';
+
 
 // --- Asocia número del bot a empresa ---
 async function obtenerEmpresaPorNumeroBot(numero) {
-  const result = await pool.query(
-    'SELECT empresa FROM bots_registrados WHERE numero = $1',
-    [numero]
-  );
-  return result.rows.length > 0 ? result.rows[0].empresa : null;
+  try {
+    const result = await pool.query(
+      'SELECT empresa FROM bots_registrados WHERE numero = $1',
+      [numero]
+    );
+    return result.rows.length > 0 ? result.rows[0].empresa : null;
+  } catch (err) {
+    logger.error(`Error consultando empresa por número: ${err.message}`);
+    return null;
+  }
 }
 
 // --- Evento: QR generado ---
@@ -45,25 +78,28 @@ client.on('qr', (qr) => {
   logger.info('🔳 Código QR generado');
 });
 
+// Logs útiles
+client.on('authenticated', () => logger.info('✅ Autenticado en WhatsApp'));
+client.on('auth_failure', (m) => logger.error(`❌ Fallo de autenticación: ${m}`));
+client.on('disconnected', (r) => logger.warn(`⚠️ Desconectado: ${r}`));
+
 // --- Evento: Cliente listo ---
 client.on('ready', async () => {
-  const botNumero = client.info.wid.user;
+  const botNumero = client.info?.wid?.user;
   logger.info(`🤖 Bot conectado con número: ${botNumero}`);
 
-  empresaActual = await obtenerEmpresaPorNumeroBot(botNumero);
-  if (!empresaActual) {
-    logger.warn('⚠️ Empresa no registrada, usando "default"');
-    empresaActual = 'default';
-  }
-
+  const desdeBD = await obtenerEmpresaPorNumeroBot(botNumero);
+  empresaActual = desdeBD || EMPRESA_DEFECTO; // fallback sólido
   logger.info(`🏢 Empresa activa: ${empresaActual}`);
+
   lastQr = null;
 });
 
 // --- Evento: Mensaje entrante ---
 client.on('message', async (message) => {
   try {
-    await handleMessage(client, message, empresaActual);
+    const empresaParaMensaje = empresaActual || EMPRESA_DEFECTO; // defensivo
+    await handleMessage(client, message, empresaParaMensaje);
   } catch (error) {
     logger.error(`❌ Error en el controlador: ${error.message}`);
   }
@@ -84,6 +120,18 @@ app.get('/api/whatsapp/qrimg', async (req, res) => {
   } else {
     res.status(404).json({ error: 'No QR disponible' });
   }
+});
+
+// Depuración: consultar/cambiar empresa activa
+app.get('/api/empresa', (req, res) => {
+  res.json({ empresaActual: empresaActual || EMPRESA_DEFECTO });
+});
+app.post('/api/empresa', (req, res) => {
+  const { empresa } = req.body || {};
+  if (!empresa) return res.status(400).json({ error: 'Falta campo empresa' });
+  empresaActual = empresa;
+  logger.info(`🏢 Empresa cambiada manualmente a: ${empresaActual}`);
+  res.json({ ok: true, empresaActual });
 });
 
 // --- API REST (auth, chat, citas) ---
