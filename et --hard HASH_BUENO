@@ -1,0 +1,15 @@
+[33mc71f6fa[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Remove secretos y agregar .gitignore
+[33m7f1924b[m Descripción clara de los cambios
+[33m6ba410f[m[33m ([m[1;32mbackup-main[m[33m)[m guardando cambios
+[33mf9161d2[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/dchamale[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mdchamale[m[33m)[m Merge pull request #2 from diego0172/main (#3)
+[33m40cd0fa[m Merge pull request #1 from diego0172/eaguerra
+[33mfa38ab7[m Boton y acceso por medio de google
+[33m5fde523[m Agrega Backend como carpeta normal
+[33m619024c[m Elimina submodulo web/Backend
+[33m09d972f[m Convierte carpeta web en parte del repositorio principal
+[33m9c7f6ec[m first commit
+[33md0f476a[m primer commit
+[33m2c01c72[m Initial commit
+[33mbe210b7[m Merge branch 'chatbotv1'
+[33m97d4d96[m[33m ([m[1;31morigin/master[m[33m, [m[1;32mmaster[m[33m, [m[1;32mchatbotv1[m[33m)[m Subiendo estructura con carpeta web
+[33madedd9e[m Primer commit del proyecto chatbotv1
