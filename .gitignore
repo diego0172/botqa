@@ -13,3 +13,5 @@ bd.env
 # SO y editor
 .DS_Store
 .vscode/
+web/Backend/config/google-oauth-*.json
+web/Backend/config/google-oauth-*.json
