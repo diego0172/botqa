@@ -88,99 +88,154 @@ const botMenus = {
     }
   },
 
+  BotEngine: {
+    nombre: "BotEngine",
+    menuPrincipal: (nombre) => ({
+      tipoRespuesta: 'texto',
+      texto:
+        `Hola ${nombre}, 👋 soy el asistente virtual de *BotEngine* 🤖.\n` +
+        `No solo estoy aqui para ayudarte, tambien soy una muestra real de lo que nuestro bot puede hacer.\n\n` +
+        "¿Qué te gustaría hacer hoy?\n\n" +
+        "*1️⃣* Precios\n" +
+        "*2️⃣* Citas\n" +
+        "*3️⃣* Servicios\n\n" +
+        "O escribe *ayuda* y un asesor te atenderá en breve."
+    }),
+    opciones: {
+      '1': { respuesta: "💰 Nuestros precios varían según el servicio. ¿Qué deseas cotizar?", siguiente: "en_menu" },
+      '1️⃣': { respuesta: "💰 Nuestros precios varían según el servicio. ¿Qué deseas cotizar?", siguiente: "en_menu" },
+      'precios': { respuesta: "💰 Nuestros precios varían según el servicio. ¿Qué deseas cotizar?", siguiente: "en_menu" },
+      'consultar precios': { respuesta: "💰 Nuestros precios varían según el servicio. ¿Qué deseas cotizar?", siguiente: "en_menu" },
 
-BotEngine: {
-  nombre: "BotEngine",
-  menuPrincipal: (nombre) => ({
-    tipoRespuesta: 'texto',
-    texto:
-      `Hola ${nombre}, 👋 soy el asistente virtual de *BotEngine* 🤖.\n` +
-      `No solo estoy aqui para ayudarte, tambien soy una muestra real de lo que nuestro bot puede hacer.\n\n` +
-      "¿Qué te gustaría hacer hoy?\n\n" +
-      "*1️⃣* Precios\n" +
-      "*2️⃣* Citas\n" +
-      "*3️⃣* Servicios\n\n" +
-      "O escribe *ayuda* y un asesor te atenderá en breve."
-  }),
-  opciones: {
-    // Opción 1: Precios
-    '1': {
-      respuesta: "💰 Nuestros precios varían según el servicio. ¿Qué deseas cotizar?",
-      siguiente: "en_menu"
-    },
-    '1️⃣': {
-      respuesta: "💰 Nuestros precios varían según el servicio. ¿Qué deseas cotizar?",
-      siguiente: "en_menu"
-    },
-    'precios': {
-      respuesta: "💰 Nuestros precios varían según el servicio. ¿Qué deseas cotizar?",
-      siguiente: "en_menu"
-    },
-    'consultar precios': {
-      respuesta: "💰 Nuestros precios varían según el servicio. ¿Qué deseas cotizar?",
-      siguiente: "en_menu"
-    },
+      '2': { respuesta: "📆 Empecemos a agendar tu cita.\nIndica tu *nombre completo* por favor.", siguiente: "cita_nombre" },
+      '2️⃣': { respuesta: "📆 Empecemos a agendar tu cita.\nIndica tu *nombre completo* por favor.", siguiente: "cita_nombre" },
+      'citas': { respuesta: "📆 Empecemos a agendar tu cita.\nIndica tu *nombre completo* por favor.", siguiente: "cita_nombre" },
+      'quiero una cita': { respuesta: "📆 Empecemos a agendar tu cita.\nIndica tu *nombre completo* por favor.", siguiente: "cita_nombre" },
+      'agendar cita': { respuesta: "📆 Empecemos a agendar tu cita.\nIndica tu *nombre completo* por favor.", siguiente: "cita_nombre" },
 
-    // Opción 2: Citas
-    '2': {
-      respuesta: "📆 Empecemos a agendar tu cita.\nIndica tu *nombre completo* por favor.",
-      siguiente: "cita_nombre"
-    },
-    '2️⃣': {
-      respuesta: "📆 Empecemos a agendar tu cita.\nIndica tu *nombre completo* por favor.",
-      siguiente: "cita_nombre"
-    },
-    'citas': {
-      respuesta: "📆 Empecemos a agendar tu cita.\nIndica tu *nombre completo* por favor.",
-      siguiente: "cita_nombre"
-    },
-    'quiero una cita': {
-      respuesta: "📆 Empecemos a agendar tu cita.\nIndica tu *nombre completo* por favor.",
-      siguiente: "cita_nombre"
-    },
-    'agendar cita': {
-      respuesta: "📆 Empecemos a agendar tu cita.\nIndica tu *nombre completo* por favor.",
-      siguiente: "cita_nombre"
-    },
+      '3': { respuesta: "🛎️ Ofrecemos: Consultoría, Desarrollo Web y Automatización.", siguiente: "detalle_servicio" },
+      '3️⃣': { respuesta: "🛎️ Ofrecemos: Consultoría, Desarrollo Web y Automatización.", siguiente: "detalle_servicio" },
+      'servicios': { respuesta: "🛎️ Ofrecemos: Consultoría, Desarrollo Web y Automatización.", siguiente: "detalle_servicio" },
+      'ver servicios': { respuesta: "🛎️ Ofrecemos: Consultoría, Desarrollo Web y Automatización.", siguiente: "detalle_servicio" },
 
-    // Opción 3: Servicios
-    '3': {
-      respuesta: "🛎️ Ofrecemos: Consultoría, Desarrollo Web y Automatización.",
-      siguiente: "detalle_servicio"
+      'ayuda': { respuesta: "🧑‍💼 Un asesor te atenderá en breve. Gracias por escribirnos.", siguiente: "en_menu" }
     },
-    '3️⃣': {
-      respuesta: "🛎️ Ofrecemos: Consultoría, Desarrollo Web y Automatización.",
-      siguiente: "detalle_servicio"
-    },
-    'servicios': {
-      respuesta: "🛎️ Ofrecemos: Consultoría, Desarrollo Web y Automatización.",
-      siguiente: "detalle_servicio"
-    },
-    'ver servicios': {
-      respuesta: "🛎️ Ofrecemos: Consultoría, Desarrollo Web y Automatización.",
-      siguiente: "detalle_servicio"
-    },
-
-    // Ayuda
-    'ayuda': {
-      respuesta: "🧑‍💼 Un asesor te atenderá en breve. Gracias por escribirnos.",
-      siguiente: "en_menu"
+    flujos: {
+      detalle_servicio: {
+        prompt: "✉️ Escribe el servicio del que deseas más información:",
+        procesa: (mensaje) => `Información del servicio \"${mensaje}\": descripción simulada.`
+      }
     }
   },
-  flujos: {
-    detalle_servicio: {
-      prompt: "✉️ Escribe el servicio del que deseas más información:",
-      procesa: (mensaje) =>
-        `Información del servicio \"${mensaje}\": descripción simulada.`
+
+  HEAVEN_LASHES: {
+    nombre: 'Heaven Lashes',
+    saludo: (nombre) => `Hola ${nombre}, soy tu asistente virtual de Heaven Lashes. Estoy aqui para apoyarte a resolver tus dudas y agendar tu proxima cita.`,
+    opciones: [
+      { clave: '1', etiqueta: 'Precios 💰', intent: 'PRECIOS' },
+      { clave: '2', etiqueta: 'Citas 📅', intent: 'CITAS' },
+      { clave: '3', etiqueta: 'Estilos 💅', intent: 'ESTILOS' },
+      { clave: '4', etiqueta: 'Promociones 🔥', intent: 'PROMOS' },
+      { clave: '5', etiqueta: 'Cancelacion o modificacion de cita ❌', intent: 'CANCEL_MOD' },
+    ],
+     horario: { inicio: '09:00', fin: '18:00', diasHabiles: [1,2,3,4,5,6], zona: 'America/Guatemala' },
+  cita: { 
+    duracionMinutos: 60,
+    sesion: {                              // 👈 NUEVO
+      recordatorioMin: 5,                  // minutos para enviar recordatorio
+      cierreMin: 15,                       // minutos para cerrar flujo
+      reanudarMin: 120, 
+      msgRecordatorio: '¿Sigues ahi? Si deseas continuar con tu cita responde un mensaje, o escribe cancelar para salir.',
+      msgCierre: 'He cerrado tu sesion por inactividad. Si deseas agendar mas tarde, escribe *citas*.',
+       msgReanudado: 'Listo, he reanudado tu sesion anterior. Sigamos donde nos quedamos.'
+    }
+  },
+     calendar: {
+        id: 'primary',              // o el ID del calendario tipo xxxxx@group.calendar.google.com
+        tz: 'America/Guatemala',    // zona horaria IANA
+        slotMinutes: 60             // duración por cita
+      },
+    keywords: {
+      precios: ['precio','precios','tarifas','costo'],
+      estilos: ['estilos','efectos','catalogo'],
+      citas: ['cita','agendar','reservar','agenda','reprogramar'],
+      promos: ['promo','promocion','promociones'],
+      cancelar: ['cancelar','cancelacion','modificar','cambiar fecha']
+    },
+    mensajes: {
+      menu: [
+        '¿Cómo te puedo apoyar hoy?',
+        '',
+        '1️⃣ Precios 💰',
+        '2️⃣ Citas 📅',
+        '3️⃣ Estilos 💅',
+        '4️⃣ Promociones 🔥',
+        '5️⃣ Cancelación o modificación de cita ❌',
+        '',
+        'O escribe "ayuda" y un asesor te atenderá'
+      ].join('\n'),
+      precios: [
+        '*Lista de precios* 💰',
+        '',
+        'Clásico:       Q. 399.00',
+        'Mojado:       Q. 399.00',
+        'Híbridas:     Q. 500.00',
+        'Volumen:     Q. 700.00',
+        'Hawaianas: Q. 350.00',
+        'Efectos:       Q. 400.00',
+        '',
+        'Escribe 2 para agendar tu cita 📅'
+      ].join('\n'),
+      estilosIntro: 'Estos son los estilos. Si tienes otra idea puedes hacérmela saber o escribe 2 y agendate tu cita. 📅',
+      promociones: [
+        'Promociones activas ✨',
+        '',
+        '1️⃣ Set hawaiano a Q. 299.00',
+        '',
+        'Escribe  2 para agendar 📅'
+      ].join('\n'),
+      pagos: [
+        'Nuestras formas de pago son:',
+        'Efectivo.',
+        'Transferencia a:',
+        'Cuenta Banco Industrial 2830069700 Monetaria'
+      ].join('\n'),
+      preparacion: [
+        '*Antes de tu cita*',
+        '☑ No traer maquillaje en tus ojitos.',
+        '☑ Me encantaría que en tu visita pueda permanecer un solo acompañante contigo.',
+        '☑ No haberse realizado lash lifting o algún procedimiento en las pestañas por dos meses antes.',
+        '☑ No usar rimel a prueba de agua en 24 horas previas.',
+        '☑ Si usas lentes de contacto debes retirarlos para el procedimiento.',
+        '☑ Y sobre todo, estar lista de quedar estupenda 😍.'
+      ].join('\n'),
+      confirmacionCita: 'Tu cita ha sido programada. Enviare recordatorio y lineamientos de preparacion.',
+      reprogramacion: 'Entendido. Vamos a cambiar la fecha. Por favor ingresa nueva fecha y hora en formato dd/mm/yyyy hh:mm',
+      cancelacion: 'Tu cita ha sido cancelada. Si deseas una nueva fecha escribe 2 o la palabra cita'
+    },
+    media: {
+      estilos: {
+        caption: 'Catálogo de estilos 💅',
+        items: [
+          //{ type: 'image', label: 'Clásico',  path: 'storage/media/heavenlashes/estilo_clasico.jpg' },
+          //{ type: 'image', label: 'Híbridas', path: 'storage/media/heavenlashes/estilo_hibridas.jpg' },
+          //{ type: 'image', label: 'Volumen',  path: 'storage/media/heavenlashes/estilo_volumen.jpg' },
+          { type: 'pdf',   label: 'Catálogo completo', path: 'storage/media/heavenlashes/catalogo_estilos.pdf' }
+        ]
+      },
+      promociones: {
+        caption: 'Promociones 🔥',
+        items: [
+          //{ type: 'image', label: 'Primera visita -20%', path: 'storage/media/heavenlashes/promo_primera.jpg' },
+         // { type: 'image', label: 'Happy Hour -15%', path: 'storage/media/heavenlashes/promo_happy.jpg' }
+        ]
+      },
     }
   }
-}
 };
-// Función para obtener el menú de una empresa
+
 function obtenerBotConfig(empresa) {
   return botMenus[empresa] || null;
 }
 
-module.exports = {
-  obtenerBotConfig
-};
+module.exports = { obtenerBotConfig, botMenus };
