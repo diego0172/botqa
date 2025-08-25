@@ -35,7 +35,6 @@ function activarLogin() {
       localStorage.setItem('tokenBot', data.token);
       localStorage.setItem('usuarioBot', JSON.stringify(data.usuario));
 
-      // Al hacer login, carga la app completa (sin reload)
       if (typeof cargarComponente === 'function') {
         await cargarComponente('topbar-container', 'components/topbar.html');
         await cargarComponente('sidebar-container', 'components/sidebar.html');
@@ -48,7 +47,18 @@ function activarLogin() {
       form.querySelector('#btn-login').disabled = false;
     }
   };
+
+  // ya se puso el  <a href="..."> en el HTML
+  // Si quieres manejarlo con JS, descomenta:
+  /*
+  document.getElementById('google-login-btn').addEventListener('click', () => {
+    // Local
+    window.location.href = 'http://localhost:3000/api/auth/google';
+
+    // Producción
+    // window.location.href = 'https://botenginecorp.com/api/auth/google';
+  });
+  */
 }
 
-// 👇 Hace que activarLogin esté disponible globalmente
 window.activarLogin = activarLogin;
