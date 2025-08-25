@@ -15,5 +15,8 @@ bd.env
 .vscode/
 web/Backend/config/google-oauth-*.json
 web/Backend/config/google-oauth-*.json
+
 web/Backend/config/google-oauth-client.json
 web/Backend/config/google-oauth-tokens.json
+
+
