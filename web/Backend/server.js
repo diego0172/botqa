@@ -127,6 +127,7 @@ app.get('/api/google/authurl', (req, res) => {
     console.error('[OAuth] getAuthUrl error:', e); // <-- verás el detalle en consola
     res.status(500).json({ error: e.message || 'No se pudo generar URL de autorización' });
   }
+
 });
 
 app.get('/api/google/callback', async (req, res) => {
@@ -140,6 +141,7 @@ app.get('/api/google/callback', async (req, res) => {
     res.status(500).send('Error guardando tokens: ' + e.message);
   }
 });
+
 
 // Fallback por si no hay registro en BD
 const EMPRESA_DEFECTO = 'HEAVEN_LASHES';
