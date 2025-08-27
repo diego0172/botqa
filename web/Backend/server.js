@@ -52,7 +52,16 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(logger);
+app.use((req, _res, next) => {
+  try {
+    logger.info(`${req.method} ${req.originalUrl}`);
+  } catch (_) {
+    // si tu logger no tiene .info, no rompas
+    console.log(req.method, req.originalUrl);
+  }
+  next();
+});
+
 
 // -------------------- Session & Passport --------------------
 app.use(session({
