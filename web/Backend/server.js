@@ -1,13 +1,16 @@
 
-// server.js
-const express = require('express');
+'use strict';
+
+// Load env from bd.env if present
+
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, 'bd.env') });
 
-// server.js
+// -------------------- Imports (single declarations only) --------------------
 const express = require('express');
 const QRCode = require('qrcode');
 const { Client, LocalAuth } = require('whatsapp-web.js');
+
 const logger = require('./middlewares/logger');
 const handleMessage = require('./controllers/whatsappController');
 const pool = require('./db');
@@ -17,59 +20,81 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 
-console.log('ENV check ->',
-  'ID?', !!process.env.GOOGLE_CLIENT_ID,
-  'SECRET?', !!process.env.GOOGLE_CLIENT_SECRET,
-  'CB?', process.env.GOOGLE_CALLBACK_URL
-);
+// Optional calendar service (do not crash if it doesn't exist)
+let calendarService = {};
+try {
+  calendarService = require('./services/googleCalendar');
+} catch (e) {
+  console.warn('googleCalendar service not found (optional):', e.message);
+}
 
+// Try to load OAuth client json if present (fallback to ENV)
+function loadGoogleClientConfig() {
+  const cfg = {
+    client_id: process.env.GOOGLE_CLIENT_ID || '',
+    client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+    redirect_uris: [process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback'],
+  };
+  try {
+    const clientJson = require('./config/google-oauth-client.json');
+    const fromFile = clientJson.installed || clientJson.web || {};
+    cfg.client_id = cfg.client_id || fromFile.client_id || '';
+    cfg.client_secret = cfg.client_secret || fromFile.client_secret || '';
+    if ((fromFile.redirect_uris && fromFile.redirect_uris.length) && (!process.env.GOOGLE_CALLBACK_URL)) {
+      cfg.redirect_uris = fromFile.redirect_uris;
+    }
+  } catch (e) {
+    // file optional
+  }
+  return cfg;
+}
+
+const googleClient = loadGoogleClientConfig();
+const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || googleClient.redirect_uris[0];
+
+// -------------------- App --------------------
 const app = express();
 const port = process.env.PORT || 3000;
-app.use(express.json());
 
-// Sesión
+app.use(express.json());
+app.use(logger);
+
+// -------------------- Session & Passport --------------------
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dev_session_key',
   resave: false,
   saveUninitialized: false,
 }));
 
-// Passport
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Serialize/Deserialize
-passport.serializeUser((user, done) => done(null, user.id));
+passport.serializeUser((user, done) => done(null, user.id || user));
 passport.deserializeUser(async (id, done) => {
   try {
-    const { rows } = await pool.query(
-      'SELECT id, nombre, email, empresa_id, rol_id, activo FROM usuarios WHERE id = $1',
-      [id]
-    );
-    done(null, rows[0] || null);
-  } catch (e) {
-    done(e);
+    const r = await pool.query('SELECT id, nombre, email FROM usuarios WHERE id = $1', [id]);
+    done(null, r.rows[0] || { id });
+  } catch (err) {
+    done(err);
   }
 });
 
-// Strategy Google
-passport.use(new GoogleStrategy(
+// Google OAuth strategy (only register once)
+passport.use('google', new GoogleStrategy(
   {
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL
-    // Local: http://localhost:3000/api/auth/google/callback
-    // Prod : https://botenginecorp.com/api/auth/google/callback
+    clientID: googleClient.client_id,
+    clientSecret: googleClient.client_secret,
+    callbackURL: GOOGLE_CALLBACK_URL,
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
-      const email = profile.emails?.[0]?.value;
-      const nombre = profile.displayName || 'Usuario Google';
-      if (!email) return done(new Error('No email in Google profile'));
+      const email = (profile.emails && profile.emails[0] && profile.emails[0].value) || null;
+      const nombre = profile.displayName || 'Usuario';
 
+      // Upsert usuario
       let result = await pool.query(
-        `SELECT id, nombre, email, password_hash, empresa_id, rol_id, activo, created_at
-         FROM usuarios WHERE email = $1`, [email]
+        'SELECT id, nombre, email, activo FROM usuarios WHERE email = $1',
+        [email]
       );
 
       let user = result.rows[0];
@@ -77,70 +102,86 @@ passport.use(new GoogleStrategy(
         const ins = await pool.query(
           `INSERT INTO usuarios (nombre, email, activo, created_at)
            VALUES ($1, $2, $3, NOW())
-           RETURNING id, nombre, email, password_hash, empresa_id, rol_id, activo, created_at`, // para aceptar datos null ejecutar esto en postgres ALTER TABLE usuarios ALTER COLUMN password_hash DROP NOT NULL;
-          [nombre, email, true]                                                                 // validar el estado en blanco con el comando \d usuarios
+           RETURNING id, nombre, email, activo`,
+          [nombre, email, true]
         );
         user = ins.rows[0];
       }
+
+      // Optionally persist tokens through calendarService if provided
+      if (calendarService.saveTokens) {
+        await calendarService.saveTokens(user.id, { accessToken, refreshToken });
+      }
+
       return done(null, user);
-    } catch (error) {
-      return done(error, null);
+    } catch (err) {
+      console.error('OAuth verification error:', err);
+      return done(err);
     }
   }
 ));
 
-// ⚠️ Quité las rutas /api/auth/google aquí para evitar duplicados.
-// Se usan las de routes/authRoutes.js
-const authRoutes = require('./routes/authRoutes');
-const chatRoutes = require('./controllers/chatController');
-const chatRoutesApi = require('./routes/chatRoutes');
-const citasRoutes = require('./routes/citas');
+// -------------------- Routes --------------------
+app.get('/health', (_req, res) => res.status(200).send('ok'));
 
-app.use('/api/auth', authRoutes);
-app.use('/api/chat', chatRoutes);
-app.use('/api/bot', chatRoutesApi);
-app.use('/api/citas', citasRoutes);
+// Auth routes (declared ONCE)
+try {
+  const authRoutes = require('./routes/authRoutes');
+  app.use('/auth', authRoutes);
+} catch (e) {
+  console.warn('routes/authRoutes not found (optional):', e.message);
+  // Minimal fallback
+  app.get('/auth/google',
+    passport.authenticate('google', { scope: ['email', 'profile'] })
+  );
 
-// Frontend estático (ajusta ruta si tu frontend está en otro lado)
-app.use(express.static(path.join(__dirname, '../frontend')));
-app.get(/^\/(?!api).*/, (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/index.html'));
-});
+  app.get('/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/auth/google' }),
+    (req, res) => {
+      res.send('Authenticated');
+    }
+  );
+}
 
-// WhatsApp
-let empresaActual = null;
+// ------- WhatsApp client -------
 let lastQr = null;
 
-const client = new Client({
+const waClient = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  }
-});
+
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  },
+
+ //   args: ['--no-sandbox', '--disable-setuid-sandbox']
+//  }
+//});
 // ENDPOINTS de autorización Google OAuth (una sola vez para guardar tokens)
-app.get('/api/google/authurl', (req, res) => {
-  try {
-    const url = getAuthUrl();
-    res.json({ url });
-  } catch (e) {
-    console.error('[OAuth] getAuthUrl error:', e); // <-- verás el detalle en consola
-    res.status(500).json({ error: e.message || 'No se pudo generar URL de autorización' });
-  }
+//app.get('/api/google/authurl', (req, res) => {
+ // try {
+   // const url = getAuthUrl();
+  //  res.json({ url });
+ // } catch (e) {
+  //  console.error('[OAuth] getAuthUrl error:', e); // <-- verás el detalle en consola
+  //  res.status(500).json({ error: e.message || 'No se pudo generar URL de autorización' });
+  //}
+
 
 });
 
-app.get('/api/google/callback', async (req, res) => {
+waClient.on('qr', async (qr) => {
   try {
-    const { code } = req.query;
-    if (!code) return res.status(400).send('Falta code');
-    const { saveCode } = require('./services/googleCalendar');
-    await saveCode(code);
-    res.send('✅ Autorizado. Ya puedes cerrar esta pestaña.');
+    lastQr = await QRCode.toDataURL(qr);
+    console.log('QR actualizado para WhatsApp');
   } catch (e) {
-    res.status(500).send('Error guardando tokens: ' + e.message);
+    console.error('Error generando QR:', e);
   }
 });
+
+
+waClient.on('ready', () => {
+  console.log('WhatsApp client READY.');
 
 
 // Fallback por si no hay registro en BD
@@ -184,16 +225,17 @@ client.on('ready', async () => {
   logger.info(`🏢 Empresa activa: ${empresaActual}`);
 
   lastQr = null;
+
 });
 
-client.on('message', async (message) => {
+waClient.on('message_create', (msg) => {
   try {
-    const empresaParaMensaje = empresaActual || EMPRESA_DEFECTO; // defensivo
-    await handleMessage(client, message, empresaParaMensaje);
-  } catch (error) {
-    logger.error(`❌ Error en el controlador: ${error.message}`);
+    handleMessage(waClient, msg);
+  } catch (e) {
+    console.error('Error en handleMessage:', e);
   }
 });
+
 
 client.initialize();
 
@@ -244,37 +286,21 @@ app.get('/api/citas', async (req, res) => {
   }
 });
 
-// Depuración: consultar/cambiar empresa activa
-app.get('/api/empresa', (req, res) => {
-  res.json({ empresaActual: empresaActual || EMPRESA_DEFECTO });
-});
-app.post('/api/empresa', (req, res) => {
-  const { empresa } = req.body || {};
-  if (!empresa) return res.status(400).json({ error: 'Falta campo empresa' });
-  empresaActual = empresa;
-  logger.info(`🏢 Empresa cambiada manualmente a: ${empresaActual}`);
-  res.json({ ok: true, empresaActual });
+
+// endpoint para mostrar el QR actual
+app.get('/qr', async (_req, res) => {
+  if (!lastQr) return res.status(202).json({ status: 'pending' });
+  res.json({ dataUrl: lastQr });
 });
 
-// Depuración: consultar/cambiar empresa activa
-app.get('/api/empresa', (req, res) => {
-  res.json({ empresaActual: empresaActual || EMPRESA_DEFECTO });
-});
-app.post('/api/empresa', (req, res) => {
-  const { empresa } = req.body || {};
-  if (!empresa) return res.status(400).json({ error: 'Falta campo empresa' });
-  empresaActual = empresa;
-  logger.info(`🏢 Empresa cambiada manualmente a: ${empresaActual}`);
-  res.json({ ok: true, empresaActual });
+// -------------------- Server start --------------------
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Servidor escuchando en puerto ${port}`);
+  console.log('ENV check ->', {
+    ID: !!googleClient.client_id,
+    SECRET: !!googleClient.client_secret,
+    CB: GOOGLE_CALLBACK_URL,
+  });
 });
 
-// Healthcheck (evita chocar con el handler de SPA)
-app.get('/health', (req, res) => res.send('OK'));
-
-pool.connect()
-  .then(() => logger.info('Conexion a PostgreSQL exitosa'))
-  .catch((err) => logger.error('Error al conectar con PostgreSQL', err));
-
-app.listen(port, () => {
-  logger.info(`Servidor escuchando en http://localhost:${port}`);
-});
+module.exports = app;
