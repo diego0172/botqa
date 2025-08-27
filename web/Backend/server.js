@@ -182,7 +182,7 @@ waClient.on('qr', async (qr) => {
 
 waClient.on('ready', () => {
   console.log('WhatsApp client READY.');
-
+});
 
 // Fallback por si no hay registro en BD
 const EMPRESA_DEFECTO = 'HEAVEN_LASHES';
