@@ -1,32 +1,52 @@
 'use strict';
 
-// -------------------- Carga de entorno --------------------
+/**
+ * Server robusto:
+ * - Carga .env desde bd.env (si existe)
+ * - Evita dobles requires / dobles app.use
+ * - logger opcional con fallback
+ * - Google OAuth opcional
+ * - WhatsApp client consistente (waClient)
+ * - Rutas opcionales (se registran solo si exportan middleware)
+ */
+
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, 'bd.env') });
 
-// -------------------- Imports --------------------
 const express = require('express');
 const QRCode = require('qrcode');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 
-const logger = require('./middlewares/logger');         // puede ser objeto; NO middleware
-const handleMessage = require('./controllers/whatsappController'); // handler de chat
-const pool = require('./db');
+let logger = require('./middlewares/logger');
+if (typeof logger !== 'function') {
+  // Fallback si tu logger no exporta un middleware
+  logger = (req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+  };
+}
 
-// OAuth opcional
-const session = require('express-session');
-const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const pool = require('./db'); // Debe exportar un Pool de pg
 
-// Servicio de calendario opcional
+// --- Google Calendar (opcional) ---
 let calendarService = {};
 try {
   calendarService = require('./services/googleCalendar');
-} catch (e) {
-  console.warn('[opt] googleCalendar no encontrado:', e.message);
+} catch (_) {
+  console.warn('[optional] services/googleCalendar no encontrado (OK).');
 }
 
-// -------------------- Config Google OAuth (opcional) --------------------
+// --- Session & Passport (OAuth opcional) ---
+const session = require('express-session');
+const passport = require('passport');
+let GoogleStrategy;
+try {
+  GoogleStrategy = require('passport-google-oauth20').Strategy;
+} catch (_) {
+  console.warn('[optional] passport-google-oauth20 no instalado (OK).');
+}
+
+// Carga de credenciales OAuth (env + archivo opcional)
 function loadGoogleClientConfig() {
   const cfg = {
     client_id: process.env.GOOGLE_CLIENT_ID || '',
@@ -34,56 +54,49 @@ function loadGoogleClientConfig() {
     redirect_uris: [process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback'],
   };
   try {
-    // Archivo opcional: Backend/config/google-oauth-client.json
-    const clientJson = require('./config/google-oauth-client.json');
+    const clientJson = require('./config/google-oauth-client.json'); // opcional
     const fromFile = clientJson.installed || clientJson.web || {};
-    cfg.client_id = cfg.client_id || fromFile.client_id || '';
-    cfg.client_secret = cfg.client_secret || fromFile.client_secret || '';
+    cfg.client_id ||= fromFile.client_id || '';
+    cfg.client_secret ||= fromFile.client_secret || '';
     if (fromFile.redirect_uris && fromFile.redirect_uris.length && !process.env.GOOGLE_CALLBACK_URL) {
       cfg.redirect_uris = fromFile.redirect_uris;
     }
-  } catch (_) {
-    // sin archivo, seguimos con ENV
-  }
+  } catch (_) {/* opcional */}
   return cfg;
 }
-const googleClient = loadGoogleClientConfig();
-const GOOGLE_CALLBACK_URL = (googleClient.redirect_uris && googleClient.redirect_uris[0]) || 'http://localhost:3000/auth/google/callback';
 
-// -------------------- App base --------------------
+const googleClient = loadGoogleClientConfig();
+const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || googleClient.redirect_uris[0];
+
+// --- App base ---
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(logger);
 
-// Logger como middleware simple (sin romper si logger no tiene .info)
-app.use((req, _res, next) => {
-  try { logger.info ? logger.info(`${req.method} ${req.originalUrl}`) : console.log(req.method, req.originalUrl); }
-  catch { console.log(req.method, req.originalUrl); }
-  next();
+// --- Sesión y Passport (si están disponibles) ---
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'dev_session_key',
+  resave: false,
+  saveUninitialized: false,
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.serializeUser((user, done) => done(null, user.id || user));
+passport.deserializeUser(async (id, done) => {
+  try {
+    const r = await pool.query('SELECT id, nombre, email FROM usuarios WHERE id = $1', [id]);
+    done(null, r.rows[0] || { id });
+  } catch (err) {
+    done(err);
+  }
 });
 
-// -------------------- Sesión + Passport (solo si hay credenciales) --------------------
-const oauthEnabled = Boolean(googleClient.client_id && googleClient.client_secret);
-if (oauthEnabled) {
-  app.use(session({
-    secret: process.env.SESSION_SECRET || 'dev_session_key',
-    resave: false,
-    saveUninitialized: false,
-  }));
-  app.use(passport.initialize());
-  app.use(passport.session());
-
-  passport.serializeUser((user, done) => done(null, user.id || user));
-  passport.deserializeUser(async (id, done) => {
-    try {
-      const r = await pool.query('SELECT id, nombre, email FROM usuarios WHERE id = $1', [id]);
-      done(null, r.rows[0] || { id });
-    } catch (err) {
-      done(err);
-    }
-  });
-
+// Registra estrategia Google solo si hay credenciales y el paquete está presente
+if (GoogleStrategy && googleClient.client_id && googleClient.client_secret) {
   passport.use('google', new GoogleStrategy(
     {
       clientID: googleClient.client_id,
@@ -92,8 +105,8 @@ if (oauthEnabled) {
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        const email = (profile.emails && profile.emails[0] && profile.emails[0].value) || null;
-        const nombre = profile.displayName || 'Usuario';
+        const email = profile?.emails?.[0]?.value || null;
+        const nombre = profile?.displayName || 'Usuario';
 
         let result = await pool.query(
           'SELECT id, nombre, email, activo FROM usuarios WHERE email = $1',
@@ -124,68 +137,58 @@ if (oauthEnabled) {
   ));
 }
 
-// -------------------- Salud --------------------
+// --- Rutas base ---
 app.get('/health', (_req, res) => res.status(200).send('ok'));
 
-// -------------------- Rutas (montajes seguros) --------------------
-function safeMountUse(route, mod, name = route) {
-  try {
-    if (!mod) return console.warn(`[warn] ${name}: módulo vacío, no se monta`);
-    if (typeof mod === 'function') {
-      app.use(route, mod);        // Express Router o middleware
-    } else if (mod.router && typeof mod.router === 'function') {
-      app.use(route, mod.router); // algunos exportan {router}
-    } else {
-      console.warn(`[warn] ${name}: no es middleware/router, omitido`);
-    }
-  } catch (e) {
-    console.warn(`[warn] fallo montando ${name}:`, e.message);
-  }
-}
-
-// /api/auth (si existe)
+// Auth routes (router opcional)
 try {
   const authRoutes = require('./routes/authRoutes');
-  safeMountUse('/api/auth', authRoutes, 'authRoutes');
-} catch (e) {
-  console.warn('[opt] routes/authRoutes no encontrado:', e.message);
-}
-
-// /api/bot (router de chat)
-try {
-  const chatRoutesApi = require('./routes/chatRoutes');
-  safeMountUse('/api/bot', chatRoutesApi, 'chatRoutes');
-} catch (e) {
-  console.warn('[opt] routes/chatRoutes no encontrado:', e.message);
-}
-
-// /api/citas (router)
-try {
-  const citasRoutes = require('./routes/citas');
-  safeMountUse('/api/citas', citasRoutes, 'citasRoutes');
-} catch (e) {
-  console.warn('[opt] routes/citas no encontrado:', e.message);
-}
-
-// /api/chat (controlador simple: normalmente función)
-try {
-  const chatController = require('./controllers/chatController');
-  if (typeof chatController === 'function') {
-    app.post('/api/chat', chatController);
-  } else if (chatController && typeof chatController.handle === 'function') {
-    app.post('/api/chat', chatController.handle);
-  } else if (chatController && typeof chatController.router === 'function') {
-    app.use('/api/chat', chatController.router);
+  if (typeof authRoutes === 'function') {
+    app.use('/auth', authRoutes);
+    app.use('/api/auth', authRoutes); // soporta ambos prefijos
   } else {
-    console.warn('[warn] chatController no es función ni router, omitido');
+    console.warn('routes/authRoutes no exporta un middleware. Se omite.');
   }
 } catch (e) {
-  console.warn('[opt] controllers/chatController no encontrado:', e.message);
+  console.warn('[optional] routes/authRoutes no encontrado:', e.message);
+  // Fallback mínimo si hay OAuth configurado
+  if (GoogleStrategy && googleClient.client_id && googleClient.client_secret) {
+    app.get('/auth/google', passport.authenticate('google', { scope: ['email', 'profile'] }));
+    app.get('/auth/google/callback',
+      passport.authenticate('google', { failureRedirect: '/auth/google' }),
+      (req, res) => res.send('Authenticated'));
+  }
 }
 
-// -------------------- Gestión de empresa activa --------------------
-const EMPRESA_DEFECTO = process.env.EMPRESA_DEFECTO || 'HEAVEN_LASHES';
+// --- WhatsApp ---
+let lastQr = null;
+const EMPRESA_DEFECTO = 'HEAVEN_LASHES';
 let empresaActual = EMPRESA_DEFECTO;
+
+const waClient = new Client({
+  authStrategy: new LocalAuth(),
+  puppeteer: {
+    headless: true,
+    // Si instalas chromium del sistema, puedes fijar executablePath
+    // executablePath: '/usr/bin/chromium-browser',
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  },
+});
+
+// QR
+waClient.on('qr', async (qr) => {
+  try {
+    lastQr = await QRCode.toDataURL(qr);
+    console.log('QR actualizado para WhatsApp');
+  } catch (e) {
+    console.error('Error generando QR:', e);
+  }
+});
+
+// Logs útiles
+waClient.on('authenticated', () => console.log('✅ Autenticado en WhatsApp'));
+waClient.on('auth_failure', (m) => console.error(`❌ Fallo de autenticación: ${m}`));
+waClient.on('disconnected', (r) => console.warn(`⚠️ Desconectado: ${r}`));
 
 async function obtenerEmpresaPorNumeroBot(numero) {
   try {
@@ -195,89 +198,114 @@ async function obtenerEmpresaPorNumeroBot(numero) {
     );
     return result.rows.length > 0 ? result.rows[0].empresa : null;
   } catch (err) {
-    try { logger.error ? logger.error(`Error consultando empresa: ${err.message}`) : console.error(err); } catch {}
+    console.error(`Error consultando empresa por número: ${err.message}`);
     return null;
   }
 }
 
-app.get('/api/empresa', (_req, res) => {
-  res.json({ empresaActual });
+waClient.on('ready', async () => {
+  console.log('WhatsApp client READY.');
+  try {
+    const botNumero = waClient.info?.wid?.user;
+    console.log(`🤖 Bot conectado con número: ${botNumero || 'desconocido'}`);
+
+    const desdeBD = botNumero ? await obtenerEmpresaPorNumeroBot(botNumero) : null;
+    empresaActual = desdeBD || EMPRESA_DEFECTO;
+    console.log(`🏢 Empresa activa: ${empresaActual}`);
+    lastQr = null;
+  } catch (e) {
+    console.error('Error en ready():', e);
+  }
 });
 
+// Manejo de mensajes (opcional)
+try {
+  const handleMessage = require('./controllers/whatsappController');
+  if (typeof handleMessage === 'function') {
+    waClient.on('message_create', (msg) => {
+      try { handleMessage(waClient, msg); }
+      catch (e) { console.error('Error en handleMessage:', e); }
+    });
+  } else {
+    console.warn('controllers/whatsappController no exporta una función. Se omite.');
+  }
+} catch (e) {
+  console.warn('[optional] controllers/whatsappController no encontrado:', e.message);
+}
+
+waClient.initialize();
+
+// --- Endpoints auxiliares ---
+app.get('/api/whatsapp/qrimg', async (_req, res) => {
+  if (!lastQr) return res.status(404).json({ error: 'No QR disponible' });
+  try {
+    const dataUrl = await QRCode.toDataURL(lastQr);
+    res.json({ qr: dataUrl });
+  } catch {
+    res.status(500).json({ error: 'Error generando QR' });
+  }
+});
+
+// empresa activa
+app.get('/api/empresa', (_req, res) => {
+  res.json({ empresaActual: empresaActual || EMPRESA_DEFECTO });
+});
 app.post('/api/empresa', (req, res) => {
   const { empresa } = req.body || {};
   if (!empresa) return res.status(400).json({ error: 'Falta campo empresa' });
   empresaActual = empresa;
-  try { logger.info ? logger.info(`Empresa cambiada manualmente a: ${empresaActual}`) : console.log('Empresa ->', empresaActual); } catch {}
+  console.log(`🏢 Empresa cambiada manualmente a: ${empresaActual}`);
   res.json({ ok: true, empresaActual });
 });
 
-// -------------------- WhatsApp --------------------
-let lastQrDataUrl = null;
-
-const client = new Client({
-  authStrategy: new LocalAuth(),
-  puppeteer: {
-    headless: true,
-    executablePath: '/usr/bin/chromium-browser',
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  },
-});
-
-client.on('qr', async (qr) => {
-  try {
-    lastQrDataUrl = await QRCode.toDataURL(qr);
-    console.log('[WA] QR actualizado');
-  } catch (e) {
-    console.error('[WA] Error generando QR:', e);
+// --- API REST opcionales (solo si exportan router) ---
+function useIfRouter(prefix, maybeRouter, name) {
+  if (typeof maybeRouter === 'function') {
+    app.use(prefix, maybeRouter);
+    return true;
   }
+  console.warn(`${name} no exporta middleware. Omitido ${prefix}`);
+  return false;
+}
+
+try {
+  const chatRoutes = require('./controllers/chatController');
+  useIfRouter('/api/chat', chatRoutes, 'controllers/chatController');
+} catch (e) {
+  console.warn('[optional] controllers/chatController no encontrado:', e.message);
+}
+
+try {
+  const chatRoutesApi = require('./routes/chatRoutes');
+  useIfRouter('/api/bot', chatRoutesApi, 'routes/chatRoutes');
+} catch (e) {
+  console.warn('[optional] routes/chatRoutes no encontrado:', e.message);
+}
+
+try {
+  const citasRoutes = require('./routes/citas');
+  useIfRouter('/api/citas', citasRoutes, 'routes/citas');
+} catch (e) {
+  console.warn('[optional] routes/citas no encontrado:', e.message);
+}
+
+// --- Endpoint simple para QR actual (debug) ---
+app.get('/qr', (_req, res) => {
+  if (!lastQr) return res.status(202).json({ status: 'pending' });
+  res.json({ dataUrl: lastQr });
 });
 
-client.on('authenticated', () => console.log('[WA] Autenticado'));
-client.on('auth_failure', (m) => console.error('[WA] Fallo de auth:', m));
-client.on('disconnected', (r) => console.warn('[WA] Desconectado:', r));
-
-client.on('ready', async () => {
-  console.log('[WA] READY');
-  const botNumero = client.info?.wid?.user;
-  console.log('[WA] Bot número:', botNumero);
-  const desdeBD = botNumero ? await obtenerEmpresaPorNumeroBot(botNumero) : null;
-  empresaActual = desdeBD || EMPRESA_DEFECTO;
-  lastQrDataUrl = null; // ya autenticado
-});
-
-client.on('message_create', async (msg) => {
-  try {
-    await handleMessage(client, msg);
-  } catch (e) {
-    console.error('[WA] Error en handleMessage:', e);
-  }
-});
-
-client.initialize();
-
-// Endpoints para ver el QR
-app.get('/api/whatsapp/qrimg', async (_req, res) => {
-  if (!lastQrDataUrl) return res.status(202).json({ status: 'pending' });
-  res.json({ qr: lastQrDataUrl });
-});
-
-app.get('/qr', async (_req, res) => {
-  if (!lastQrDataUrl) return res.status(202).json({ status: 'pending' });
-  res.json({ dataUrl: lastQrDataUrl });
-});
-
-// -------------------- Inicio del servidor --------------------
+// --- Start ---
 app.listen(port, '0.0.0.0', () => {
   console.log(`Servidor escuchando en puerto ${port}`);
   console.log('ENV check ->', {
     ID: !!googleClient.client_id,
     SECRET: !!googleClient.client_secret,
     CB: GOOGLE_CALLBACK_URL,
-    OAUTH_ENABLED: oauthEnabled,
   });
 });
 
 module.exports = app;
+
 
 
