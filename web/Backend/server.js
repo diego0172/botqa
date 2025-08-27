@@ -1,6 +1,8 @@
+
 'use strict';
 
 // Load env from bd.env if present
+
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, 'bd.env') });
 
@@ -12,6 +14,7 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const logger = require('./middlewares/logger');
 const handleMessage = require('./controllers/whatsappController');
 const pool = require('./db');
+const { getAuthUrl, saveCode } = require('./services/googleCalendar');
 
 const session = require('express-session');
 const passport = require('passport');
@@ -147,8 +150,24 @@ const waClient = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
     headless: true,
+
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   },
+
+ //   args: ['--no-sandbox', '--disable-setuid-sandbox']
+//  }
+//});
+// ENDPOINTS de autorización Google OAuth (una sola vez para guardar tokens)
+//app.get('/api/google/authurl', (req, res) => {
+ // try {
+   // const url = getAuthUrl();
+  //  res.json({ url });
+ // } catch (e) {
+  //  console.error('[OAuth] getAuthUrl error:', e); // <-- verás el detalle en consola
+  //  res.status(500).json({ error: e.message || 'No se pudo generar URL de autorización' });
+  //}
+
+
 });
 
 waClient.on('qr', async (qr) => {
@@ -160,8 +179,53 @@ waClient.on('qr', async (qr) => {
   }
 });
 
+
 waClient.on('ready', () => {
   console.log('WhatsApp client READY.');
+
+
+// Fallback por si no hay registro en BD
+const EMPRESA_DEFECTO = 'HEAVEN_LASHES';
+
+
+// --- Asocia número del bot a empresa ---
+async function obtenerEmpresaPorNumeroBot(numero) {
+
+  try {
+    const result = await pool.query(
+      'SELECT empresa FROM bots_registrados WHERE numero = $1',
+      [numero]
+    );
+    return result.rows.length > 0 ? result.rows[0].empresa : null;
+  } catch (err) {
+    logger.error(`Error consultando empresa por número: ${err.message}`);
+    return null;
+  }
+
+}
+
+// --- Evento: QR generado ---
+client.on('qr', (qr) => {
+  lastQr = qr;
+  logger.info('🔳 Código QR generado');
+});
+
+// Logs útiles
+client.on('authenticated', () => logger.info('✅ Autenticado en WhatsApp'));
+client.on('auth_failure', (m) => logger.error(`❌ Fallo de autenticación: ${m}`));
+client.on('disconnected', (r) => logger.warn(`⚠️ Desconectado: ${r}`));
+
+
+client.on('ready', async () => {
+  const botNumero = client.info?.wid?.user;
+  logger.info(`🤖 Bot conectado con número: ${botNumero}`);
+
+  const desdeBD = await obtenerEmpresaPorNumeroBot(botNumero);
+  empresaActual = desdeBD || EMPRESA_DEFECTO; // fallback sólido
+  logger.info(`🏢 Empresa activa: ${empresaActual}`);
+
+  lastQr = null;
+
 });
 
 waClient.on('message_create', (msg) => {
@@ -172,7 +236,56 @@ waClient.on('message_create', (msg) => {
   }
 });
 
-waClient.initialize();
+
+client.initialize();
+
+app.get('/api/whatsapp/qrimg', async (req, res) => {
+
+  if (lastQr) {
+    try {
+      const dataUrl = await QRCode.toDataURL(lastQr);
+      res.json({ qr: dataUrl });
+    } catch (e) {
+      res.status(500).json({ error: 'Error generando QR' });
+    }
+  } else {
+    res.status(404).json({ error: 'No QR disponible' });
+  }
+});
+
+// Depuración: consultar/cambiar empresa activa
+app.get('/api/empresa', (req, res) => {
+  res.json({ empresaActual: empresaActual || EMPRESA_DEFECTO });
+});
+app.post('/api/empresa', (req, res) => {
+  const { empresa } = req.body || {};
+  if (!empresa) return res.status(400).json({ error: 'Falta campo empresa' });
+  empresaActual = empresa;
+  logger.info(`🏢 Empresa cambiada manualmente a: ${empresaActual}`);
+  res.json({ ok: true, empresaActual });
+});
+
+// --- API REST (auth, chat, citas) ---
+const authRoutes = require('./routes/authRoutes');
+const chatRoutes = require('./controllers/chatController');
+const chatRoutesApi = require('./routes/chatRoutes');
+const citasRoutes = require('./routes/citas');
+
+app.use('/api/auth', authRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/bot', chatRoutesApi);
+app.use('/api/citas', citasRoutes);
+
+// --- GET citas calendario ---
+app.get('/api/citas', async (req, res) => {
+  try {
+    const dataUrl = await QRCode.toDataURL(lastQr);
+    res.json({ qr: dataUrl });
+  } catch {
+    res.status(500).json({ error: 'Error generando QR' });
+  }
+});
+
 
 // endpoint para mostrar el QR actual
 app.get('/qr', async (_req, res) => {
