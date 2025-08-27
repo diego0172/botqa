@@ -1,34 +1,29 @@
-
 'use strict';
-
-// Load env from bd.env if present
 
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, 'bd.env') });
 
-// -------------------- Imports (single declarations only) --------------------
+// -------------------- Imports --------------------
 const express = require('express');
+const session = require('express-session');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const QRCode = require('qrcode');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 
 const logger = require('./middlewares/logger');
 const handleMessage = require('./controllers/whatsappController');
 const pool = require('./db');
-const { getAuthUrl, saveCode } = require('./services/googleCalendar');
 
-const session = require('express-session');
-const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
-
-// Optional calendar service (do not crash if it doesn't exist)
+// -------------------- Servicios opcionales --------------------
 let calendarService = {};
 try {
-  calendarService = require('./services/googleCalendar');
+  calendarService = require('./services/googleCalendar'); // opcional
 } catch (e) {
   console.warn('googleCalendar service not found (optional):', e.message);
 }
 
-// Try to load OAuth client json if present (fallback to ENV)
+// -------------------- Google OAuth config --------------------
 function loadGoogleClientConfig() {
   const cfg = {
     client_id: process.env.GOOGLE_CLIENT_ID || '',
@@ -40,11 +35,11 @@ function loadGoogleClientConfig() {
     const fromFile = clientJson.installed || clientJson.web || {};
     cfg.client_id = cfg.client_id || fromFile.client_id || '';
     cfg.client_secret = cfg.client_secret || fromFile.client_secret || '';
-    if ((fromFile.redirect_uris && fromFile.redirect_uris.length) && (!process.env.GOOGLE_CALLBACK_URL)) {
+    if (fromFile.redirect_uris?.length && !process.env.GOOGLE_CALLBACK_URL) {
       cfg.redirect_uris = fromFile.redirect_uris;
     }
-  } catch (e) {
-    // file optional
+  } catch {
+    // archivo opcional
   }
   return cfg;
 }
@@ -79,7 +74,6 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
-// Google OAuth strategy (only register once)
 passport.use('google', new GoogleStrategy(
   {
     clientID: googleClient.client_id,
@@ -88,7 +82,7 @@ passport.use('google', new GoogleStrategy(
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
-      const email = (profile.emails && profile.emails[0] && profile.emails[0].value) || null;
+      const email = profile.emails?.[0]?.value || null;
       const nombre = profile.displayName || 'Usuario';
 
       // Upsert usuario
@@ -108,7 +102,7 @@ passport.use('google', new GoogleStrategy(
         user = ins.rows[0];
       }
 
-      // Optionally persist tokens through calendarService if provided
+      // Guarda tokens si el servicio está disponible
       if (calendarService.saveTokens) {
         await calendarService.saveTokens(user.id, { accessToken, refreshToken });
       }
@@ -121,53 +115,36 @@ passport.use('google', new GoogleStrategy(
   }
 ));
 
-// -------------------- Routes --------------------
+// -------------------- Rutas básicas --------------------
 app.get('/health', (_req, res) => res.status(200).send('ok'));
 
-// Auth routes (declared ONCE)
+// Auth (usa router si existe; si no, fallback mínimo)
+let authRoutes;
 try {
-  const authRoutes = require('./routes/authRoutes');
-  app.use('/auth', authRoutes);
+  authRoutes = require('./routes/authRoutes');
 } catch (e) {
   console.warn('routes/authRoutes not found (optional):', e.message);
-  // Minimal fallback
-  app.get('/auth/google',
-    passport.authenticate('google', { scope: ['email', 'profile'] })
-  );
-
+}
+if (authRoutes) {
+  app.use('/api/auth', authRoutes);
+} else {
+  app.get('/auth/google', passport.authenticate('google', { scope: ['email', 'profile'] }));
   app.get('/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/auth/google' }),
-    (req, res) => {
-      res.send('Authenticated');
-    }
+    (req, res) => res.send('Authenticated')
   );
 }
 
-// ------- WhatsApp client -------
+// -------------------- WhatsApp --------------------
 let lastQr = null;
+let empresaActual = 'HEAVEN_LASHES';
 
 const waClient = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
     headless: true,
-
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   }
-
- //   args: ['--no-sandbox', '--disable-setuid-sandbox']
-//  }
-//});
-// ENDPOINTS de autorización Google OAuth (una sola vez para guardar tokens)
-//app.get('/api/google/authurl', (req, res) => {
- // try {
-   // const url = getAuthUrl();
-  //  res.json({ url });
- // } catch (e) {
-  //  console.error('[OAuth] getAuthUrl error:', e); // <-- verás el detalle en consola
-  //  res.status(500).json({ error: e.message || 'No se pudo generar URL de autorización' });
-  //}
-
-
 });
 
 waClient.on('qr', async (qr) => {
@@ -179,53 +156,33 @@ waClient.on('qr', async (qr) => {
   }
 });
 
+waClient.on('authenticated', () => logger.info('✅ Autenticado en WhatsApp'));
+waClient.on('auth_failure', (m) => logger.error(`❌ Fallo de autenticación: ${m}`));
+waClient.on('disconnected', (r) => logger.warn(`⚠️ Desconectado: ${r}`));
 
-waClient.on('ready', () => {
-  console.log('WhatsApp client READY.');
-});
-
-// Fallback por si no hay registro en BD
-const EMPRESA_DEFECTO = 'HEAVEN_LASHES';
-
-
-// --- Asocia número del bot a empresa ---
 async function obtenerEmpresaPorNumeroBot(numero) {
-
   try {
     const result = await pool.query(
       'SELECT empresa FROM bots_registrados WHERE numero = $1',
       [numero]
     );
-    return result.rows.length > 0 ? result.rows[0].empresa : null;
+    return result.rows[0]?.empresa || null;
   } catch (err) {
     logger.error(`Error consultando empresa por número: ${err.message}`);
     return null;
   }
-
 }
 
-// --- Evento: QR generado ---
-client.on('qr', (qr) => {
-  lastQr = qr;
-  logger.info('🔳 Código QR generado');
-});
-
-// Logs útiles
-client.on('authenticated', () => logger.info('✅ Autenticado en WhatsApp'));
-client.on('auth_failure', (m) => logger.error(`❌ Fallo de autenticación: ${m}`));
-client.on('disconnected', (r) => logger.warn(`⚠️ Desconectado: ${r}`));
-
-
-client.on('ready', async () => {
-  const botNumero = client.info?.wid?.user;
+waClient.on('ready', async () => {
+  console.log('WhatsApp client READY.');
+  const botNumero = waClient.info?.wid?.user;
   logger.info(`🤖 Bot conectado con número: ${botNumero}`);
 
   const desdeBD = await obtenerEmpresaPorNumeroBot(botNumero);
-  empresaActual = desdeBD || EMPRESA_DEFECTO; // fallback sólido
+  if (desdeBD) empresaActual = desdeBD;
   logger.info(`🏢 Empresa activa: ${empresaActual}`);
 
-  lastQr = null;
-
+  lastQr = null; // una vez listo, ya no necesitamos el QR
 });
 
 waClient.on('message_create', (msg) => {
@@ -236,27 +193,21 @@ waClient.on('message_create', (msg) => {
   }
 });
 
+waClient.initialize();
 
-client.initialize();
-
-app.get('/api/whatsapp/qrimg', async (req, res) => {
-
-  if (lastQr) {
-    try {
-      const dataUrl = await QRCode.toDataURL(lastQr);
-      res.json({ qr: dataUrl });
-    } catch (e) {
-      res.status(500).json({ error: 'Error generando QR' });
-    }
-  } else {
-    res.status(404).json({ error: 'No QR disponible' });
+// -------------------- Endpoints utilitarios --------------------
+app.get('/api/whatsapp/qrimg', async (_req, res) => {
+  if (!lastQr) return res.status(404).json({ error: 'No QR disponible' });
+  try {
+    // lastQr ya es un dataURL; si lo quisieras regenerar desde texto, usa QRCode.toDataURL
+    res.json({ qr: lastQr });
+  } catch {
+    res.status(500).json({ error: 'Error generando QR' });
   }
 });
 
-// Depuración: consultar/cambiar empresa activa
-app.get('/api/empresa', (req, res) => {
-  res.json({ empresaActual: empresaActual || EMPRESA_DEFECTO });
-});
+// Consultar/cambiar empresa activa
+app.get('/api/empresa', (_req, res) => res.json({ empresaActual }));
 app.post('/api/empresa', (req, res) => {
   const { empresa } = req.body || {};
   if (!empresa) return res.status(400).json({ error: 'Falta campo empresa' });
@@ -265,33 +216,14 @@ app.post('/api/empresa', (req, res) => {
   res.json({ ok: true, empresaActual });
 });
 
-// --- API REST (auth, chat, citas) ---
-const authRoutes = require('./routes/authRoutes');
+// -------------------- API REST (chat, bot, citas) --------------------
 const chatRoutes = require('./controllers/chatController');
 const chatRoutesApi = require('./routes/chatRoutes');
 const citasRoutes = require('./routes/citas');
 
-app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/bot', chatRoutesApi);
 app.use('/api/citas', citasRoutes);
-
-// --- GET citas calendario ---
-app.get('/api/citas', async (req, res) => {
-  try {
-    const dataUrl = await QRCode.toDataURL(lastQr);
-    res.json({ qr: dataUrl });
-  } catch {
-    res.status(500).json({ error: 'Error generando QR' });
-  }
-});
-
-
-// endpoint para mostrar el QR actual
-app.get('/qr', async (_req, res) => {
-  if (!lastQr) return res.status(202).json({ status: 'pending' });
-  res.json({ dataUrl: lastQr });
-});
 
 // -------------------- Server start --------------------
 app.listen(port, '0.0.0.0', () => {
@@ -304,3 +236,4 @@ app.listen(port, '0.0.0.0', () => {
 });
 
 module.exports = app;
+
