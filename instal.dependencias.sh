@@ -11,6 +11,8 @@ npm install dotenv
 npm install jspdf
 npm install jspdf-autotable
 npm install moment
+npm i mime-types
+
 
 npm install @google-cloud/dialogflow                
 
