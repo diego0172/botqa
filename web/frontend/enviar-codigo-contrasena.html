@@ -1,0 +1,104 @@
+<html>
+  <head>
+    <title>Enviar Código Contraseña</title>
+    <link rel="stylesheet" href="css/style.css">
+  </head>
+  <body>
+    <!-- El fondo y color se controlan por las variables de tema y el script utils.js -->
+    <div class="login-container">
+      <form id="forgotForm">
+        <h2>Recuperar Contraseña</h2>
+        <label for="email">Correo:</label>
+        <input type="email" id="email" name="email" required />
+        <button type="submit" id="btn-login" style="margin-bottom: 0.5rem;">Enviar Código</button>
+        <div id="result" style="margin-top:0.7rem;"></div>
+      </form>
+      <form id="codeForm" style="display:none;flex-direction:column;gap:1.1rem;margin-top:1.2rem;">
+        <label for="codigo">Código de verificación:</label>
+        <input type="text" id="codigo" name="codigo" required />
+        <button type="submit" class="btn-crear-cuenta">Ingresar Código</button>
+        <div id="result-codigo" style="margin-top:0.7rem;"></div>
+      </form>
+      <form id="resetForm" style="display:none;flex-direction:column;gap:1.1rem;margin-top:1.2rem;">
+        <label for="newPassword">Nueva contraseña:</label>
+        <input type="password" id="newPassword" name="newPassword" required />
+        <label for="confirmNewPassword">Confirmar nueva contraseña:</label>
+        <input type="password" id="confirmNewPassword" name="confirmNewPassword" required />
+        <button type="submit" class="btn-crear-cuenta">Cambiar Contraseña</button>
+        <div id="result-reset" style="margin-top:0.7rem;"></div>
+      </form>
+    </div>
+    <script src="js/utils.js"></script>
+    <script>
+      let emailGlobal = '';
+      let codigoGlobal = '';
+      // Enviar código
+      document.getElementById('forgotForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        emailGlobal = email;
+        const res = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        const resultDiv = document.getElementById('result');
+        if (data.message) {
+          resultDiv.style.color = '#205caa';
+          resultDiv.textContent = data.message;
+          document.getElementById('codeForm').style.display = 'flex';
+        } else if (data.error) {
+          resultDiv.style.color = '#c00';
+          resultDiv.textContent = data.error;
+        } else {
+          resultDiv.style.color = '#c00';
+          resultDiv.textContent = 'Error inesperado';
+        }
+      });
+
+      // Validar código
+      document.getElementById('codeForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const codigo = document.getElementById('codigo').value.trim();
+        if (!codigo) {
+          document.getElementById('result-codigo').style.color = '#c00';
+          document.getElementById('result-codigo').textContent = 'Ingresa el código.';
+          return;
+        }
+        // Guardar código y mostrar formulario de nueva contraseña
+        codigoGlobal = codigo;
+        document.getElementById('resetForm').style.display = 'flex';
+        document.getElementById('codeForm').style.display = 'none';
+      });
+
+      // Cambiar contraseña
+      document.getElementById('resetForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const newPassword = document.getElementById('newPassword').value;
+        const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+        const resultDiv = document.getElementById('result-reset');
+        if (newPassword !== confirmNewPassword) {
+          resultDiv.style.color = '#c00';
+          resultDiv.textContent = 'Las contraseñas no coinciden.';
+          return;
+        }
+        // Enviar petición de cambio
+        const res = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailGlobal, code: codigoGlobal, newPassword })
+        });
+        const data = await res.json();
+        if (data.message) {
+          resultDiv.style.color = '#205caa';
+          resultDiv.textContent = data.message + ' Redirigiendo al login...';
+          setTimeout(() => { window.location.href = 'index.html'; }, 2000);
+        } else {
+          resultDiv.style.color = '#c00';
+          resultDiv.textContent = data.error || 'Error al cambiar contraseña';
+        }
+      });
+    </script>
+  </body>
+</html>

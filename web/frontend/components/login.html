@@ -9,16 +9,23 @@
     <input type="password" id="login-password" required autocomplete="current-password" />
 
     <button type="submit" id="btn-login">Entrar</button>
-    <div class="login-error" id="login-error"></div>
-  </form>
+
+   <div class="auth-links">
+  <a href="../crearcuenta.html">Crear Cuenta</a>
+  <a href="../enviar-codigo-contrasena.html">¿Olvidaste tu contraseña?</a>
+</div>
+
+<div class="login-error" id="login-error"></div>
 
 
-  <a href="http://localhost:3000/api/auth/google" class="google-btn"> <!-- Producción: https://botenginecorp.com/api/auth/google -->
-  <div class="google-icon-wrapper">
-    <img class="google-icon" src="https://developers.google.com/identity/images/g-logo.png" alt="Google logo"/>
-  </div>
-  <p class="btn-text"><b>Continuar con Google</b></p>
-</a>
 
 
- 
+  <a href="http://localhost:3000/api/auth/google" class="google-btn">
+    <div class="google-icon-wrapper">
+      <img class="google-icon" 
+           src="https://developers.google.com/identity/images/g-logo.png" 
+           alt="Google logo"/>
+    </div>
+    <p class="btn-text"><b>Continuar con Google</b></p>
+  </a>
+</div>

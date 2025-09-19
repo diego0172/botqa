@@ -35,30 +35,25 @@ function activarLogin() {
       localStorage.setItem('tokenBot', data.token);
       localStorage.setItem('usuarioBot', JSON.stringify(data.usuario));
 
-      if (typeof cargarComponente === 'function') {
-        await cargarComponente('topbar-container', 'components/topbar.html');
-        await cargarComponente('sidebar-container', 'components/sidebar.html');
-        await cargarComponente('main-content', 'components/dashboard.html');
-      } else {
-        location.reload();
-      }
+      // Redirigir al dashboard tras login exitoso
+      window.location.href = 'dashboard.html';
     } catch (err) {
       errorDiv.textContent = 'Error de red o servidor.';
       form.querySelector('#btn-login').disabled = false;
     }
   };
 
-  // ya se puso el  <a href="..."> en el HTML
-  // Si quieres manejarlo con JS, descomenta:
+  // El login con Google ya está resuelto con el <a href="..."> en el HTML.
+  // Si prefieres manejarlo con JS, puedes descomentar este bloque:
   /*
   document.getElementById('google-login-btn').addEventListener('click', () => {
-    // Local
     window.location.href = 'http://localhost:3000/api/auth/google';
-
-    // Producción
-    // window.location.href = 'https://botenginecorp.com/api/auth/google';
+    // En producción: window.location.href = 'https://botenginecorp.com/api/auth/google';
   });
   */
 }
 
-window.activarLogin = activarLogin;
+// Ejecutar automáticamente si existe el formulario de login
+if (document.getElementById('login-form')) {
+  activarLogin();
+}

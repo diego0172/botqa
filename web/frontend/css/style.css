@@ -1,3 +1,6 @@
+/* =====================
+   BASE GLOBAL
+   ===================== */
 body {
   margin: 0;
   font-family: Arial, sans-serif;
@@ -19,6 +22,7 @@ body {
   height: 56px;
   padding: 0 1rem;
 }
+
 .sidebar {
   width: 220px;
   min-width: 220px;
@@ -30,13 +34,14 @@ body {
   padding: 2rem 1rem;
   position: relative;
   display: block;
-  transition: 
+  transition:
     transform 0.3s cubic-bezier(.4,0,.2,1),
     opacity 0.25s cubic-bezier(.4,0,.2,1);
   transform: translateX(0);
   opacity: 1;
   pointer-events: auto;
 }
+
 .sidebar.anim-hide {
   transform: translateX(-100%);
   opacity: 0;
@@ -62,6 +67,7 @@ main {
   flex: 1;
   padding: 2rem;
 }
+
 #main-content {
   opacity: 1;
   transition: opacity 0.25s cubic-bezier(.4,0,.2,1);
@@ -71,6 +77,7 @@ main {
   opacity: 0;
 }
 
+/* Caja de chat demo */
 .chat-box {
   background: #181924;
   border-radius: 0.7rem;
@@ -113,14 +120,16 @@ main {
   color: green;
 }
 
+/* Botón hamburguesa en topbar */
 .hamburger {
   font-size: 2rem;
   background: transparent;
   border: none;
-  color: #23272f !important; /* o #fff para claro, según fondo del topbar */
+  color: #23272f !important; /* o #fff si el topbar es oscuro */
   cursor: pointer;
   margin-right: 1rem;
 }
+
 .menu-btn {
   position: fixed;
   top: 1rem;
@@ -153,10 +162,12 @@ main {
   padding: 0 !important;
   margin: 0 !important;
 }
+
 .app-container.sidebar-open main {
-  /* Puedes reducir padding, cambiar fondo, etc. */
+  /* Ajustes cuando el sidebar está abierto */
   padding-left: 1rem;
 }
+
 @media (max-width: 768px) {
   .app-container {
     flex-direction: column;
@@ -165,7 +176,7 @@ main {
   .sidebar {
     position: fixed;
     left: 0;
-    top: 56px; /* Altura del topbar */
+    top: 56px; /* altura del topbar */
     width: 80vw;
     min-width: 0;
     max-width: 300px;
@@ -178,11 +189,35 @@ main {
   }
 }
 
-.sidebar.anim-hide {
-  transform: translateX(-100%);
-  opacity: 0;
-  pointer-events: none;
+/* =====================
+   MODO CLARO / OSCURO
+   Tuerca y modales
+   ===================== */
+
+/* Variables por modo */
+:root.modo-claro {
+  --color-bg: #fff;
+  --color-fg: #23272f;
+  --color-accent: #23272f;
 }
+
+:root.modo-oscuro {
+  --color-bg: #181924;
+  --color-fg: #e8e8e8;
+  --color-accent: #e8e8e8;
+}
+
+/* Aplicación de variables a contenedores clave */
+body,
+.app-container,
+.chat-box,
+.config-modal,
+.bot-config-modal {
+  background: var(--color-bg) !important;
+  color: var(--color-fg) !important;
+}
+
+/* Botón flotante de configuración (tuerca) */
 .bot-config-btn {
   position: fixed;
   bottom: 2rem;
@@ -197,11 +232,18 @@ main {
   font-size: 2rem;
   box-shadow: 0 2px 10px rgba(44,44,60,.18);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, transform 0.06s;
 }
+
 .bot-config-btn:hover {
   background: #44485a;
 }
+
+.bot-config-btn:active {
+  transform: translateY(1px);
+}
+
+/* Mini modal rápido junto a la tuerca */
 .bot-config-modal {
   position: fixed;
   bottom: 80px;
@@ -216,9 +258,11 @@ main {
   flex-direction: column;
   gap: 0.7rem;
 }
+
 .bot-config-modal.hidden {
   display: none;
 }
+
 .bot-config-modal button {
   background: #e8e8e8;
   color: #23272f;
@@ -229,9 +273,12 @@ main {
   cursor: pointer;
   transition: background 0.15s;
 }
+
 .bot-config-modal button:hover {
   background: #d2d2d2;
 }
+
+/* Fondo y modal de configuración general */
 .config-modal-bg {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -239,7 +286,10 @@ main {
   z-index: 999;
   transition: opacity .2s;
 }
-.config-modal-bg.hidden { display: none; }
+
+.config-modal-bg.hidden {
+  display: none;
+}
 
 .config-modal {
   position: fixed;
@@ -256,23 +306,30 @@ main {
   flex-direction: column;
   gap: 1.3rem;
 }
-.config-modal.hidden { display: none; }
+
+.config-modal.hidden {
+  display: none;
+}
+
 .config-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
+
 .config-modal-header button {
   background: none;
   border: none;
   font-size: 1.3rem;
   cursor: pointer;
 }
+
 .config-modal-body label {
   display: block;
   font-weight: bold;
   margin-bottom: .3rem;
 }
+
 #empresa-select {
   font-size: 1.1rem;
   padding: .5rem;
@@ -280,23 +337,10 @@ main {
   border: 1px solid #b0b0b0;
 }
 
-:root.modo-claro {
-  --color-bg: #fff;
-  --color-fg: #23272f;
-  --color-accent: #23272f;
-  /* ...otros colores */
-}
-:root.modo-oscuro {
-  --color-bg: #181924;
-  --color-fg: #e8e8e8;
-  --color-accent: #e8e8e8;
-  /* ...otros colores */
-}
-body, .app-container, .chat-box, .config-modal, .bot-config-modal {
-  background: var(--color-bg) !important;
-  color: var(--color-fg) !important;
-}
-/* Ajusta colores en el resto de tu CSS usando var(--color-bg), etc. */
+/* =====================
+   LOGIN / AUTH SCREENS
+   ===================== */
+
 .login-container {
   max-width: 400px;
   margin: 7vh auto 0 auto;
@@ -305,72 +349,34 @@ body, .app-container, .chat-box, .config-modal, .bot-config-modal {
   box-shadow: 0 2px 22px rgba(44,44,60,.13);
   padding: 2rem 2.5rem;
 }
+
 .login-container form {
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
 }
+
 .login-container label {
   font-size: 1rem;
   color: #23272f;
 }
-.login-container input {
-  padding: 0.7rem;
-  border-radius: .6rem;
-  border: 1px solid #ccc;
-  font-size: 1.1rem;
-}
-#btn-login {
-  background: #23272f;
-  color: #fff;
-  border: none;
-  padding: 0.85rem;
-  border-radius: 0.6rem;
-  font-size: 1.1rem;
-  cursor: pointer;
-}
-#btn-login:hover {
-  background: #44485a;
-}
-.login-error {
-  color: #c00;
-  font-size: 1rem;
-  margin-top: 0.3rem;
-  min-height: 1.5em;
-}
-.login-container {
-  max-width: 400px;
-  margin: 7vh auto 0 auto;
-  background: #fff;
-  border-radius: 1rem;
-  box-shadow: 0 2px 22px rgba(44,44,60,.13);
-  padding: 2rem 2.5rem;
-}
 
-/* TÍTULO LOGIN */
-.login-container h2 {
-  color: #205caa;       /* Azul profesional, bien visible */
-  opacity: 1;           /* 100% visible */
-  font-weight: bold;    /* Resaltado */
-  margin-bottom: 2rem;
-  font-size: 2rem;
-  letter-spacing: 0.02em;
-}
-
-/* Campos de login */
-.login-container label {
-  font-size: 1rem;
-  color: #495057;       /* Gris medio para etiquetas */
-}
 .login-container input {
   padding: 0.7rem;
   border-radius: .6rem;
   border: 1px solid #ccc;
   font-size: 1.1rem;
   background: #fafbfc;
+  outline: none;
 }
+
+.login-container input:focus {
+  border-color: #205caa;
+  box-shadow: 0 0 0 3px rgba(32,92,170,.18);
+}
+
 #btn-login {
-  background: #205caa;
+  background: #205caa; /* Azul corporativo */
   color: #fff;
   border: none;
   padding: 0.85rem;
@@ -381,10 +387,12 @@ body, .app-container, .chat-box, .config-modal, .bot-config-modal {
   margin-top: 0.6rem;
   transition: background 0.18s;
 }
+
 #btn-login:hover {
   background: #3576d1;
 }
 
+/* Mensajes de error */
 .login-error, #login-error {
   color: #ff4d4f;
   font-size: 1rem;
@@ -394,307 +402,143 @@ body, .app-container, .chat-box, .config-modal, .bot-config-modal {
   font-weight: bold;
 }
 
-.qr-overlay {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: #23252b; /* tu color actual */
-  border-radius: 15px;
-  padding: 16px;
-  width: 100%;
-  max-width: 100%;
-  min-height: 220px;
-  box-sizing: border-box;
-}
-#qr-image {
-  width: 100%;
-  max-width: 350px;  /* Tamaño máximo, puedes ajustarlo */
-  height: auto;
-  border-radius: 12px;
-  background: #494545;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.10);
-  transition: max-width 0.2s;
-}
-
-.qr-overlay img {
-  width: 96%;
-  max-width: 360px;
-  min-width: 180px;
-  border-radius: 1.1em;
-  box-shadow: 0 6px 24px rgba(44,44,60,0.22);
-  background: #504b4b;
-  border: 2px solid #23272f;
-}
-
-@media (max-width: 600px) {
-  .qr-overlay img {
-    max-width: 95vw;
-    width: 97vw;
-    min-width: 120px;
-  }
-}
-#chat-historial {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 130px;
-  margin-top: .5rem;
-}
-
-.modal-bg {position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:99;}
-.modal-cita {background:#fff;padding:1.5rem 2rem;border-radius:10px;box-shadow:0 0 15px #222;max-width:400px;width:90%;}
-.hidden {display:none;}
-.btn {padding:0.4em 1em;margin-top:0.7em;}
-.btn-primary {background:#1976d2;color:white;border:none;}
-.btn-success {background:#43a047;color:white;border:none;}
-.btn-secondary {background:gray;color:white;border:none;}
-
-
-body {
-  background: #ece5dd;
-  font-family: "Segoe UI", Arial, sans-serif;
-  margin: 0;
-}
-
-.wa-chat-container {
-  display: flex;
-  height: 90vh;
-  max-width: 950px;
-  margin: 40px auto 0 auto;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
-  background: #fff;
-}
-
-.wa-sidebar {
-  width: 220px;
-  background: #075e54;
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 24px 0 0 0;
-  border-right: 1px solid #e0e0e0;
-}
-
-.wa-sidebar-header {
-  font-size: 1.2rem;
+/* Título */
+.login-container h2 {
+  color: #205caa;
   font-weight: bold;
-  margin-bottom: 8px;
+  margin-bottom: 2rem;
+  font-size: 2rem;
+  letter-spacing: 0.02em;
 }
 
-.wa-main {
-  flex: 1;
+/* Link unitario para páginas antiguas que lo usen */
+.link-olvide {
+  display: block;
+  text-align: right;
+  font-size: .95rem;
+  color: #205caa;
+  text-decoration: underline;
+}
+
+.link-olvide:hover {
+  text-decoration: none;
+}
+
+/* Contenedor de acciones: Crear Cuenta a la izquierda, Olvidaste a la derecha */
+.auth-links {
   display: flex;
-  flex-direction: column;
-  background: #ece5dd;
-  position: relative;
+  justify-content: space-between;
+  margin-top: 0.4rem;
 }
 
-.wa-header {
-  display: flex;
-  align-items: center;
-  padding: 18px 18px 14px 18px;
-  background: #fff;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.wa-contact-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.wa-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: #e0e0e0;
-  object-fit: cover;
-}
-
-.wa-contact-name {
-  font-weight: bold;
-  font-size: 1.1rem;
-}
-
-.wa-status {
-  font-size: 0.85rem;
-  color: #25d366;
-}
-
-.wa-chat-box {
-  flex: 1;
-  padding: 22px 18px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  background: #ece5dd;
-}
-
-.wa-messages .wa-message {
-  max-width: 65%;
-  padding: 12px 18px;
-  border-radius: 14px;
-  font-size: 1rem;
-  position: relative;
-  margin-bottom: 4px;
-  word-break: break-word;
-}
-
-.wa-messages .wa-message.received {
-  background: #fff;
-  color: #222;
-  align-self: flex-start;
-  border-bottom-left-radius: 4px;
-}
-
-.wa-messages .wa-message.sent {
-  background: #dcf8c6;
-  align-self: flex-end;
-  border-bottom-right-radius: 4px;
-  color: #222
-}
-
-.wa-messages .wa-time {
-  display: inline-block;
-  font-size: 0.75rem;
-  opacity: 0.55;
-  margin-left: 12px;
-}
-
-.wa-chat-form {
-  display: flex;
-  padding: 14px 18px;
-  background: #f7f7f7;
-  border-top: 1px solid #e0e0e0;
-  gap: 10px;
-}
-
-.wa-chat-form input[type="text"] {
-  flex: 1;
-  border: none;
-  border-radius: 22px;
-  padding: 10px 16px;
-  font-size: 1rem;
-  outline: none;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-}
-
-.wa-chat-form button {
-  background: #25d366;
-  color: #fff;
-  border: none;
-  border-radius: 22px;
-  padding: 10px 22px;
-  font-size: 1rem;
+.auth-links a {
+  font-size: .95rem;
+  color: #205caa;
+  text-decoration: underline;
   cursor: pointer;
-  transition: background 0.2s;
 }
 
-.wa-chat-form button:hover {
-  background: #128c7e;
+.auth-links a:hover {
+  text-decoration: none;
 }
 
-.wa-respuesta {
-  padding: 8px 18px;
-  font-size: 0.95rem;
-  color: #444;
-}
-
-/* Capa flotante del QR */
-#qr-wa {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: transparent;
-  z-index: 10000;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-/* Caja blanca bonita del QR */
-.qr-popup {
-  background: #fff;
-  border-radius: 22px;
-  box-shadow: 0 8px 48px rgba(0,0,0,0.18);
-  padding: 36px 40px 32px 40px;
-  text-align: center;
-  min-width: 320px;
-  max-width: 95vw;
-}
-
-.qr-popup-title {
+/* Botón Crear Cuenta normal para formularios */
+.btn-crear-cuenta {
+  background: #e8e8e8;
   color: #23272f;
-  font-size: 1.3rem;
+  border: 1px solid #d1d5db;
+  padding: 0.85rem 1rem;
+  border-radius: 0.6rem;
   font-weight: bold;
-  margin-bottom: 22px;
+  cursor: pointer;
+  margin-top: 0.6rem;
+  transition: background 0.18s;
 }
 
-.qr-popup img {
-  width: 220px;
-  max-width: 90vw;
-  margin-bottom: 12px;
-  border-radius: 16px;
-  border: 2px solid #23272f;
-  background: #fff;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.13);
+.btn-crear-cuenta:hover {
+  background: #dcdcdc;
 }
 
-
-#sidebar-overlay {
-  display: none !important;
+/* Variante oscura para Regresar en crear cuenta */
+.btn-crear-cuenta.btn-oscuro {
+  background: #44485a;
+  color: #fff;  /* Texto blanco */
+  border-color: #44485a;
 }
 
-#qr-wa {
-  pointer-events: none !important;
+.btn-crear-cuenta.btn-oscuro:hover {
+  background: #3b3f50;
+  color: #fff;
 }
 
 /* Botón de Google */
 .google-btn {
   width: 260px;
   height: 40px;
+  margin: 15px auto 0 auto;
   background-color: #fff;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   text-decoration: none;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  transition: box-shadow 0.3s, transform 0.2s;
-  margin-top: 15px;
-  margin-left: auto;
-  margin-right: auto;
+  transition: box-shadow 0.2s, transform 0.06s;
 }
 
 .google-btn:hover {
-  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+}
+
+.google-btn:active {
+  transform: translateY(1px);
 }
 
 .google-icon-wrapper {
   background-color: #fff;
   border-right: 1px solid #ddd;
   height: 100%;
-  width: 50px;
+  width: 46px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .google-icon {
-  width: 20px;
-  height: 20px;
+  width: 19px;
+  height: 19px;
+  display: block;
 }
 
 .btn-text {
   flex: 1;
   text-align: center;
-  font-size: 16px;
+  font-size: 15px;
   color: #555;
   margin: 0;
 }
+
+/* Modales simples reutilizados en crear cuenta */
+.modal-bg {
+  position: fixed;
+  top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99;
+}
+
+.modal-cita {
+  background: #fff;
+  padding: 1.5rem 2rem;
+  border-radius: 10px;
+  box-shadow: 0 0 15px #222;
+  max-width: 400px;
+  width: 90%;
+}
+
+.hidden {
+  display: none;
+}
+

@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const pool = require('../db');
 const SECRET = process.env.JWT_SECRET || 'supersecreto';
 const passport = require('passport');
-const { googleLogin } = require('../controllers/authController');
+const { forgotPassword, resetPassword, signup } = require('../controllers/authController');
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
@@ -57,8 +57,11 @@ router.get('/google',
 );
 
 router.get('/google/callback',
-  passport.authenticate('google', { failureRedirect: '/' }),
-  googleLogin // tu controlador final (emite token / redirige)
+  passport.authenticate('google', { failureRedirect: '/' })
 );
+
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
+router.post('/signup', signup);
 
 module.exports = router;
