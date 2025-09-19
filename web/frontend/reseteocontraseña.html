@@ -1,0 +1,37 @@
+<html>
+  <head>
+    <title>Reseteocontraseña</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <h2>Reseteocontraseña</h2>
+    <form id="resetForm">
+      <label for="email">Email:</label>
+      <input type="email" id="email" name="email" required />
+      <br/>
+      <label for="code">Código de verificación:</label>
+      <input type="text" id="code" name="code" required />
+      <br/>
+      <label for="newPassword">Nueva Contraseña:</label>
+      <input type="password" id="newPassword" name="newPassword" required />
+      <br/>
+      <button type="submit">Reseteocontraseña</button>
+    </form>
+    <div id="result"></div>
+    <script>
+      document.getElementById('resetForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const code = document.getElementById('code').value;
+        const newPassword = document.getElementById('newPassword').value;
+        const res = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, code, newPassword })
+        });
+        const data = await res.json();
+        document.getElementById('result').textContent = JSON.stringify(data);
+      });
+    </script>
+  </body>
+</html>
